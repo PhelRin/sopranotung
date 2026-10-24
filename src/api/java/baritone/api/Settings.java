@@ -837,6 +837,28 @@ public final class Settings {
     public final Setting<Integer> maxFallHeightNoWater = new Setting<>(3);
 
     /**
+     * When there's no path all the way to the goal yet, the bot sets off on the best part of one. That part may not end
+     * more than this many blocks below both where it starts and the goal (for a goal with a height, like {@code #goto x y z}).
+     * <p>
+     * On a parkour map the ground under the course is a dead end. The bot used to drop onto it early on, sure it would find a
+     * way back up later, and there wasn't one. Now it only goes lower when there's really nothing else at this height: it
+     * has already been stuck right here, and nothing is still being worked out in the background. -1 turns this off.
+     */
+    public final Setting<Integer> partialPathMaxDrop = new Setting<>(2);
+
+    /**
+     * Never plan to stand below this height (a parkour level's floor, where the server puts you back to the start or the last
+     * checkpoint). Off at its default. See {@link #learnFallFloor} for working it out by itself.
+     */
+    public final Setting<Integer> avoidBelowY = new Setting<>(-2048);
+
+    /**
+     * When the server teleports you back up after a fall (a parkour server resetting you to a checkpoint), remember how low
+     * that fall went and don't plan to stand that low again in this world, as if {@link #avoidBelowY} were set to it.
+     */
+    public final Setting<Boolean> learnFallFloor = new Setting<>(true);
+
+    /**
      * How far are you allowed to fall onto solid ground (with a water bucket)?
      * It's not that reliable, so I've set it below what would kill an unarmored player (23)
      * <p>
