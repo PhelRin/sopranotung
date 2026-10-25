@@ -1,8 +1,71 @@
-# Parkour Lab v7
+# Parkour Lab v7 (bot v11)
 
 A test course for Soprano's parkour: 26 sections, each aimed at one kind of jump, ending in a finale that strings a bit of every section together. Next to it, in rows to the south, the CubeCraft levels you recorded, rebuilt block for block, each a course of its own.
 
 The Lab is built at **x 1000, y 150, z 1000**, floating in the air, and runs east (+x) for about 820 blocks. Gold pads are checkpoints. Fall below y 140, or into lava, and you're put back on your last one.
+
+## What's new in bot v11 (same course, v7)
+
+- **It learns the way from your recordings.** `#routes learn <recording>` reads a `#record` recording from `.minecraft/baritone/recordings` and lays down the way you went as trails, just as if the bot had watched you play. Play a level once with `#record`, learn it, and the next `#goto` follows your way. Add `dx dy dz` to move it (for a map rebuilt somewhere else, like Parkour Lab's levels: see below).
+  - Falls you were put back from are cut out. So are misses you flew back up from (landing on or next to where you'd been is a way back there), and anything you flew up to by accident and came back down from. A fall down to a lower part of the course that you then flew back up from keeps the way between.
+  - Swimming and climbing are on the trail too (your recording's own blocks say where the water and the ladders were), so a swim up hanging water or a ladder climb isn't a gap.
+- **Leaps along the way.** From a block on a trail to one up to 6 cells on along it, further than any single jump the planner asks about, in one go by the full search, in the background. That covers a chain like running off the edge of one block into the next jump with the speed carried.
+- **Touchy jumps as a last resort.** A jump that only lands on the very edge, or only with the aim spot on, was left out; now it's taken (at three times the cost) when nothing else gets there. Jumps on a trail that the planner skipped behind a wall (bars, posts in between) get tried too.
+- **It treads water.** In water with somewhere to go and no plan yet, it holds jump instead of sinking out of a hanging water block onto the floor under it, and the bob doesn't restart its search every tick.
+- **It doesn't give up.** A `#goto` that finds nothing looks again, up to `noPathRetries` times (10) a couple of seconds apart, instead of stopping.
+- **Restarting a level, a fall that sends you flying back up** (Endurance): the trail keeps the climb.
+
+**How v11 did** (`#goto` the finish, 10 minutes a go, trails learned from the seven recordings):
+
+| | v10 | v11 |
+|---|---|---|
+| Chess | done, 145 s (v9) | done, 46 s, 0 falls (78 s with no trails) |
+| Aqua | done with a trail, 78 s | done, 38–39 s, 0 falls |
+| Candy | done, 30 s | done, 24 s, 0 falls |
+| Endurance | not past the start (v9) | checkpoint 18–27 of 43 |
+| Desert | checkpoint 3 | checkpoint 3 (in 25 s), through the swim to the last water block |
+| Hell | checkpoint 2 | checkpoint 3–4 |
+| Chess (harder) | checkpoint 1 | checkpoint 1, some runs |
+
+Still to do: Hell after 4 (a run round a fence post on a one block pillar, a jump to the next and off its far edge with the speed carried, five blocks down: the full search doesn't find the run round the post yet), Desert after the swim (post to post, four and a bit across), the rest of Endurance, and Chess (harder)'s stair (you flew that one, so there's no way to copy) and its fence and wall jumps.
+
+Levels: checkpoints on a fence or wall post put you back on top of the post now (they put you inside it, where nothing can plan), and one recorded standing on the edge of a block (Hell's 4) puts you on the block, not over the lava next to it.
+
+To teach the Lab's levels from the recordings (the levels are moved from where CubeCraft has them):
+
+```
+#routes learn chess -4970 0 1166
+#routes learn chessharder -4852 0 -811
+#routes learn aqua 246 0 1195
+#routes learn desert -654 0 1119
+#routes learn hell -1554 0 1186
+#routes learn endurance -3465 0 1115
+#routes learn candy -14344 0 1183
+```
+
+(the recordings go in `.minecraft/baritone/recordings`, as .zip or folders). On CubeCraft itself there's nothing to move: `#routes learn <name>` as it is.
+
+## What's new in bot v10 (same course, v7)
+
+- **It remembers the way.** Every block you stand on goes onto a trail, whether the bot's walking or you are, with loops and the bits before a fall left out. The trails are saved with the world's other Soprano data, so they're still there next session. A `#goto` towards somewhere a trail goes past follows it. When it can't see all the way, it goes as far along the trail as it can (not as near the finish as the crow flies, which on a winding level is the wrong way). A trail that never got to the finish still gets it as far as last time, and it carries on from there.
+  - So on a level that winds, it learns: the first go (or a go checkpoint by checkpoint, or you playing it once) teaches it, the next `#goto` follows. Aqua: stuck at checkpoint 3 or 4 before; after one go checkpoint by checkpoint, a `#goto` from the start finished in 74 s with 0 falls.
+  - A trail that keeps not working from some spot (its next jump fails, or it went into a dead end) stops being followed from there after three tries, for that `#goto`.
+  - Restarting a level keeps the trail (a teleport after standing still is a restart; one straight after a fall, or the moment you step on something, is a put back, and the bit after the checkpoint goes).
+  - `#routes` says how many trails it has for this world, `#routes forget` wipes them. The setting is `useRouteMemory`.
+- **It remembers which jumps keep missing** in the game, and goes round them when there's another way.
+- **The jump net.** A small net (NNUE-shaped: a wide sparse first layer over the blocks round a jump, then two small ones) that guesses whether the sim will make a jump. It learns from every jump the sim works out as the bot plays, and keeps what it's learned in `baritone/jumpnet.bin`. With `#set useJumpNet true` the planner skips the sim for jumps the net is sure won't work. Trained on the Lab and four of the levels and tested on Hell, which it had never seen: it skips about a fifth of the hopeless jumps and loses about 1 in 1000 of the good ones. The one to use (trained on the Lab and all seven levels: about a quarter skipped, 0.16% lost on jumps held back from training) comes separately, as it's trained on CubeCraft's maps: copy it to `.minecraft/baritone/jumpnet.bin`. Off by default for now; `learnJumpNet` (on) keeps it learning either way.
+- **No more back and forth.** On a course that heads away from the finish first (Aqua's start), the bot could jump out to the far heads and straight back, over and over: from out there, the best part path was back where it came from. A part path doesn't end where the bot has just been (on the way to this goal: where the last go went is the way, this time) any more.
+- **Restarting a level isn't a fall.** Starting a level over while standing on some block made it think that block resets you.
+
+**How v10 did** (`#goto` the finish, 9 minutes a go):
+
+| | v9 | v10, first go | v10, with a trail |
+|---|---|---|---|
+| Aqua | checkpoint 3 or 4 | checkpoint 5 of 8 (the start's heads in 17 s, not stuck) | done, 78 s, 0 falls |
+| Hell | checkpoint 2 | | checkpoint 2 (the trail only went that far) |
+| Chess (harder) | not past the start | | checkpoint 1 |
+
+Where it helps most: a level that's been done once, by you or by the bot a checkpoint at a time. Where it doesn't yet: Aqua's second half heads away from the finish (east, then back west); the first go heads straight for the finish, under it, and finds the way round only after a lot of falls.
 
 ## What's new in v7
 
