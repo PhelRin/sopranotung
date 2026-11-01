@@ -281,6 +281,13 @@ public final class Settings {
     public final Setting<Boolean> allowNeos = new Setting<>(false);
 
     /**
+     * With allowNeos, the triple neo from right behind the wall (a wall three thick, the landing on the block right after
+     * it, level): a run of bunny hops along a runway of 12 blocks or more, off the very edge, pressed along the wall's side.
+     * No standing start gets round one of those.
+     */
+    public final Setting<Boolean> allowRunningNeos = new Setting<>(true);
+
+    /**
      * Jump onto ladders and vines across a gap, and off of them again, instead of walking the long way round
      * <p>
      * Only actually takes effect if {@link #allowParkour} is also true. Grabbing is a sprint jump (or a plain jump for the
@@ -882,6 +889,12 @@ public final class Settings {
      * which a later search usually finds anyway (it still asks the sim about a few of them, to keep learning).
      */
     public final Setting<Boolean> useJumpNet = new Setting<>(false);
+
+    /**
+     * Write every game tick where the bot took more than this many milliseconds of the client thread to the log, with what
+     * took the time (#lag shows the worst so far). 0 is off. For finding what makes the game stutter.
+     */
+    public final Setting<Long> lagLogMs = new Setting<>(0L);
 
     /**
      * Teach that net from every jump the sim works out, as the bot plays, and keep what it's learned (baritone/jumpnet.bin)
@@ -2195,6 +2208,12 @@ public final class Settings {
      * opens it. The gui's own Settings tab has a key capture control for this.
      */
     public final Setting<Integer> guiKey = new Setting<>(344);
+
+    /**
+     * GLFW key code that switches the spectator free camera on and off (same as {@code #freecam}). Defaults to F6 (295).
+     * -1 unbinds it.
+     */
+    public final Setting<Integer> freecamKey = new Setting<>(295);
 
     /**
      * Use the dark appearance in the click gui. The sidebar's Light and Dark buttons save this preference.

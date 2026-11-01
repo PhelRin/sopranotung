@@ -1,10 +1,104 @@
-# Parkour Lab v7 (bot v15)
+# Parkour Lab v8 (bot v18)
 
 A test course for Soprano's parkour: 26 sections, each aimed at one kind of jump, ending in a finale that strings a bit of every section together. Next to it, in rows to the south, the CubeCraft levels you recorded, rebuilt block for block, each a course of its own.
 
-The Lab is built at **x 1000, y 150, z 1000**, floating in the air, and runs east (+x) for about 820 blocks. Gold pads are checkpoints. Fall below y 140, or into lava, and you're put back on your last one.
+The Lab is built at **x 1000, y 150, z 1000**, floating in the air, and runs east (+x) for about 890 blocks. Gold pads are checkpoints. Fall below y 140, or into lava, and you're put back on your last one.
 
-## What's new in bot v15 (same course, v7)
+## What's new in bot v18 (same course, v8)
+
+**No more giving up at the edge of the water.** In a lone water block (the CubeCraft kind), the bot found no way on from the edge of the block but did from the middle. After its retries ran out it stopped looking for good. Four things fixed it:
+- **Jumps out of a water block are tried from more places**: the middle, the edge on the way out, and the other edges, from the bottom of the block and from near its top. They used to be tried from the middle only. A real fall into the water never ends up in the middle, and some of the way on from the Lab's section 25 blocks (1766 165 995 and 1768 162 995) wasn't found from there at all.
+- **Sinking out of the bottom of the block counts as still being in it.** The bot used to plan from the air under the block, where every way on is a fall.
+- **When it's in water and nothing turns up**, it swims to the middle of the block (holding jump, so it doesn't sink out) and looks again. This is what you were doing by hand. It does this up to 30 times before the usual give up.
+- **The jump net no longer skips jumps out of water.** It learned on jumps from standing.
+
+**Tests.** JumpPilotTest and ChainTest work again. They had been failing on settings that aren't there outside the game, which JumpPolicy.safeFall and the v16 lag meter both read. Run the tungsten tests one class at a time: a class that sets up the game's registries and one that doesn't can't share a JVM (that's older than this).
+
+**How v18 did:**
+
+| | result |
+|---|---|
+| Lab 25 Water blocks, put in at the edge of each water block (1764, 1765, 1766, 1768) | way found and section done every time, 6 to 9 s, 0 falls. Before: no way from 1766 or 1768 even from the middle, and from the 1764 edge it stopped at the 1766 one |
+| Lab 25 from its checkpoint | 10.3 s, 0 falls (the full run before: 21.7 s, 2 falls) |
+| Aqua, Candy | 41 s / 0 falls, 23 s / 0 |
+| Desert | checkpoint 3 of 8, as before (stuck on dry jumps after it, not the water) |
+
+## What was new in bot v17 (course v8: section 15 has a new jump, everything after it is 21 blocks further east)
+
+**The triple neo from right behind the wall.** You were right, it's possible in vanilla. It takes momentum: no run up from standing gets round a wall three thick from behind, but a run of bunny hops does. The bot (`RunNeo`, `allowRunningNeos`, on with `allowNeos`) does it the way you described:
+- it hops along the runway, out towards its open side edge, every touchdown straight back up, so each hop keeps the jump's push on top of the speed the last flight carried;
+- the hops are timed (where it starts on the runway, and how many ticks it runs before the first hop) so the last one comes down right at the end, the box just out past the wall's side, and it jumps straight off the very edge;
+- in the air it presses into the side of the wall, which costs nothing and holds the line exactly on the wall's edge, and once past the end it turns in onto the block.
+
+The margins are small. Each tick the bot rolls the rest of the run out in the sim for a handful of choices (how close to the wall's side line the last touchdown goes, how hard it turns out on that tick, and in the air how hard it presses and when it turns in) and plays the best. It plans the start in about a second and a half on a background thread.
+
+In the sim with the aim wobbling the way LookBehavior wobbles it, it lands 20 out of 20 off a 12 to 14 block runway, but only 8 out of 20 off 10 or 11. So it's only offered with 12 or more blocks of runway behind the takeoff, a wall three thick, and the landing on the line.
+
+**Course v8:** section 15 (Triple neos) now ends with one from behind: a fourteen block runway (13 behind the takeoff block), in line with a wall three thick, the open side to the south. Every checkpoint from 16 on moved 21 blocks east (the table below has the new ones). Rebuild with `/function parkourlab:build`. I dropped the bot's own trails from routes.json that went through the part that moved.
+
+**Fewer wrong floors.** With no remembered way to follow, the planner kept the floors of the last trail it had followed for anything within 128 blocks, even when that trail was only one of its own runs. After a run of section 15, the Sky tower's purpur blocks 60 blocks back weren't somewhere it would land, and the full run stopped there. Now only a recording's floors carry over like that, and only within 64 blocks.
+
+**How v17 did:**
+
+| | result |
+|---|---|
+| Lab 15 Triple neos (with the new one) | 5 of 5: 21 to 33 s, 0 falls |
+| Lab, the whole course from one `#goto` | done, 567 s, 6 falls. Section 11 (ladder neos, 162 s, 3 falls) is still the slowest. 16 neo chains took 77 s. Two falls were on section 25's water blocks |
+| Unit test (RunNeoTest) | 20 of 20 landed off a 13 block runway, aim wobbling |
+
+## What was new in bot v16 (same course, v7)
+
+**Search speed and lag**
+
+- **The jump searches don't re-read the world every time they're asked.** A* asked for a background jump search's answer with a hash of every block round the jump, and that hashing was most of what A* spent its time on. Now each chunk has a change counter (bumped when it loads, unloads or a block in it changes), and an answer is good while its chunks' counters are the same. A* went from about 9 to between 50 and 500 nodes a second on the levels.
+- **A background search the player has left behind is called off.** One round a wall 400 blocks back ran for 18 seconds while the neo the path was waiting on sat behind it. Searches more than 48 blocks from the player stop part way now.
+- **A full search queue isn't copied into.** A job that would only be thrown out again doesn't take a copy of the blocks round it.
+- **Up to three search threads** on a machine with the cores for it (one on a small one).
+- **The game thread does less each tick:**
+  - the chunk table is copied only when a chunk loads or unloads, not every tick;
+  - the planner's settings are built once a second;
+  - a jump's cost is worked out again once a second, not every tick;
+  - the remembered route is put together on the search thread, not the game's;
+  - routes.json is written on a thread of its own;
+  - the game thread no longer waits on a search that's reading the routes.
+  
+  On Candy, ticks where the bot took more than 10 ms went from 56 to 7.
+- **`lagLogMs`** (off by default): any tick where the bot spends more than that many ms on the game thread is logged with the parts that took the time.
+
+**Fewer stupid falls**
+
+- **Every fall is logged with what the bot was doing**: the movements of the last two seconds, on the ground or in the air, and whether it stepped off on purpose because there was no way on. Look for `[fall]` in the log (in chat too with `chatDebug`).
+- **Recordings are never forgotten.** With more than 64 trails the oldest went, and the recordings are the oldest. After a few dozen of its own runs the bot had forgotten six levels' recordings, and Desert didn't get off its start. Now only the bot's own runs get dropped.
+- **Dead ends.** Where the bot had to step off to be put back, no remembered way through there is followed again that session. This is what was happening with the stair jump on Chess (harder) when you weren't standing on the black wool. From anywhere else on stop 2, the recording's way went down onto the floor under the course, where you'd fallen. The bot stood there, was put back, and went there again.
+- **One block ladders caught mid fall** (Hell, over the lava): the bot holds sneak until the ladder has stopped it. It used to slide out of the bottom of the ladder, three times in a row.
+- **A jump that went a tick early** carries on with the plan from where it's got to, instead of dropping the plan in mid air (Hell's drop over the lava).
+- **Into a hanging water column** (Desert): in the column is landed. It used to bob at the top for two minutes waiting to be done.
+
+**Free cam**
+
+- `#freecam` (or `#spectate`), the **F6** key (`freecamKey`), or the **Free cam** button in the gui's status strip.
+- Fly with WASD, space and shift; sprint to go faster; scroll to set the speed. The bot keeps playing.
+- It follows the bot by default: `#freecam follow` leaves it where it is instead.
+- The same again turns it off. Dying or leaving the world turns it off too.
+
+**Triple neos.** (Wrong, see v17: I said a level triple neo from behind wasn't possible. It is, off a run of bunny hops, which the search from a running start never tried.)
+
+**How v16 did** (`#goto` the finish from the start, a fresh client each set of runs):
+
+| | result |
+|---|---|
+| Chess | done: 45 s / 0 falls, 112 s / 1, 120 s / 0 (v15: 161 s / 1) |
+| Aqua | done: 42 s / 0, 38 s / 0 (v15: 40 s) |
+| Candy | done: 24 s / 0, twice; 27 s with the release jar |
+| Hell | done: 128 s / 1, 161 s / 3, 330 s / 6 (v15: 196 s / 2) |
+| Chess (hard) | done: 101 s / 1 fall (v15: 125 s / 1) |
+| Chess (harder) | done: 445 s, 3 falls, all three stepping off on purpose. Another run got to stop 8 in the 10 minutes. Stops 7 to 8 (the ladder round the tower) are still the slow bit, 1 to 2.5 minutes |
+| Endurance | checkpoint 38 of 43 in the 10 minutes, 17 falls (mostly coming down off a landing) |
+| Desert | checkpoint 3 of 8. Past the water columns now, then stuck before 4 |
+| Dam | checkpoint 6 in 268 s (v15: 179 to 194 s) |
+| Lab 4 Neos / 17 Combo / 16 Neo chains | 10 s / 0, 14 s / 0 (v5: 85 s / 3), 98 to 178 s |
+
+## What was new in bot v15 (same course, v7)
 
 - **Chess (harder) all the way**, with your recording of the gap after stop 2 (`chh-gap`): the bot runs off the black wool, clips the corner of the quartz and hops straight on onto the stair, the way you did.
 - **A recording of just the hard bit joins onto the level's.** A trail that stops short (yours from stop 2 to stop 4) is followed and then the way goes on along whichever trail crosses it and gets to the finish (the level's own recording, past where you flew). Up to three trails in a row. The ones learned from recordings go first; the bot's own runs only when no learned way gets there.
@@ -294,20 +388,20 @@ To test one section, teleport to its start checkpoint, then `#goto` the next one
 | 12 | Ice palace | `/function parkourlab:cp/11` | `#goto 1427 155 1021` |
 | 13 | Sky tower | `/function parkourlab:cp/12` | `#goto 1439 161 1021` |
 | 14 | Slime factory | `/function parkourlab:cp/13` | `#goto 1470 157 1021` |
-| 15 | Triple neos | `/function parkourlab:cp/14` | `#goto 1503 157 1021` |
-| 16 | Neo chains | `/function parkourlab:cp/15` | `#goto 1528 157 1021` |
-| 17 | Combo | `/function parkourlab:cp/16` | `#goto 1549 158 1021` |
-| 18 | Slime to ladder | `/function parkourlab:cp/17` | `#goto 1576 158 1021` |
-| 19 | Ice tunnel | `/function parkourlab:cp/18` | `#goto 1616 158 1021` |
-| 20 | CubeCraft | `/function parkourlab:cp/19` | `#goto 1621 159 992` |
-| 21 | Decorations (new) | `/function parkourlab:cp/20` | `#goto 1658 160 992` |
-| 22 | Pillars (new) | `/function parkourlab:cp/21` | `#goto 1684 160 992` |
-| 23 | Ladder tops (new) | `/function parkourlab:cp/22` | `#goto 1706 162 994` |
-| 24 | Soul sand (new) | `/function parkourlab:cp/23` | `#goto 1737 162 994` |
-| 25 | Water blocks (new) | `/function parkourlab:cp/24` | `#goto 1753 159 994` |
-| 26 | Finale | `/function parkourlab:cp/25` | `#goto 1869 163 992` |
+| 15 | Triple neos (now with the one from behind) | `/function parkourlab:cp/14` | `#goto 1524 157 1021` |
+| 16 | Neo chains | `/function parkourlab:cp/15` | `#goto 1549 157 1021` |
+| 17 | Combo | `/function parkourlab:cp/16` | `#goto 1570 158 1021` |
+| 18 | Slime to ladder | `/function parkourlab:cp/17` | `#goto 1597 158 1021` |
+| 19 | Ice tunnel | `/function parkourlab:cp/18` | `#goto 1637 158 1021` |
+| 20 | CubeCraft | `/function parkourlab:cp/19` | `#goto 1642 159 992` |
+| 21 | Decorations (new) | `/function parkourlab:cp/20` | `#goto 1679 160 992` |
+| 22 | Pillars (new) | `/function parkourlab:cp/21` | `#goto 1705 160 992` |
+| 23 | Ladder tops (new) | `/function parkourlab:cp/22` | `#goto 1727 162 994` |
+| 24 | Soul sand (new) | `/function parkourlab:cp/23` | `#goto 1758 162 994` |
+| 25 | Water blocks (new) | `/function parkourlab:cp/24` | `#goto 1774 159 994` |
+| 26 | Finale | `/function parkourlab:cp/25` | `#goto 1890 163 992` |
 
-Full run: `/function parkourlab:start`, then `#goto 1869 163 992`.
+Full run: `/function parkourlab:start`, then `#goto 1890 163 992`.
 
 ## What changed in the bot in v5
 
